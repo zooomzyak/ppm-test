@@ -154,48 +154,6 @@ function scaleControl(n, value, onPick, labels) {
 }
 
 /* ====================================================================
-   ЛЕНДИНГ
-   ==================================================================== */
-function mountLanding(app) {
-  var hero = h("div", { class: "hero screen" },
-    h("div", { class: "seal" }, "ВАК 5.3.4"),
-    h("div", { class: "inner" },
-      h("p", { class: "kicker on-dark", text: "Программа развития педагогического мышления" }),
-      h("h1", { text: "Диагностика и выбор целей развития" }),
-      h("p", { class: "lead", text: "Короткая серия заданий о вашем профессиональном мышлении как преподавателя. Помогает выбрать, что развивать, и увидеть динамику до и после программы." }),
-      h("div", { class: "meta" },
-        h("span", {}, h("b", {}, "4"), " инструмента"),
-        h("span", {}, "анонимно, по личному коду"),
-        h("span", {}, "можно с телефона")
-      ),
-      h("div", { class: "actions" },
-        h("button", { class: "btn gold big", onclick: function () { location.hash = getProfile() ? "#/hub" : "#/anketa"; } },
-          getProfile() ? "Продолжить" : "Начать", h("span", { class: "arr", text: "→" }))
-      )
-    )
-  );
-
-  var items = [
-    ["Мотивация", "Что важно и интересно развивать и в чём вы уверены."],
-    ["Выбор целей", "Отметить навыки, над которыми будете работать."],
-    ["Первичная диагностика", "Замер текущего уровня до программы."],
-    ["Вторичная диагностика", "Тот же замер после программы, для сравнения."]
-  ];
-  var grid = h("div", { class: "hub-grid screen", style: { marginTop: "20px" } });
-  items.forEach(function (it, i) {
-    grid.appendChild(h("div", { class: "tile", style: { cursor: "default" } },
-      h("div", { class: "row1" }, h("div", { class: "idx", text: String(i + 1) }), h("h3", { text: it[0] })),
-      h("p", { text: it[1] })
-    ));
-  });
-
-  var note = h("div", { class: "note ok screen", style: { marginTop: "20px" } },
-    "Конфиденциальность. Вместо имени используется короткий код из первых букв ФИО и даты рождения. Он нужен только чтобы связать ваши ответы «до» и «после». Личность по нему не раскрывается.");
-
-  app.appendChild(h("div", { class: "wrap" }, hero, grid, note));
-}
-
-/* ====================================================================
    АНКЕТА + КОД
    ==================================================================== */
 function renderAnketa(main) {
@@ -697,7 +655,7 @@ function render() {
   var parts = hash.replace(/^#\/?/, "").split("/");
   var root = parts[0] || "";
 
-  if (root === "") { mountLanding(app); return; }
+  if (root === "") { location.hash = getProfile() ? "#/hub" : "#/anketa"; return; }
   if (!getProfile() && root !== "anketa") { location.hash = "#/anketa"; return; }
 
   app.appendChild(appbar());
