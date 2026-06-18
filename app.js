@@ -112,8 +112,14 @@ function fallbackCopy(text) {
 }
 
 /* ---------------- общие компоненты ---------------- */
+function resetCode() {
+  if (!window.confirm("Сменить код участника? Незавершённые ответы на этом устройстве будут очищены.")) return;
+  try { Object.keys(localStorage).forEach(function (k) { if (k.indexOf("ppm.") === 0) localStorage.removeItem(k); }); } catch (e) {}
+  location.hash = "#/anketa";
+}
 function appbar() {
   var p = getProfile();
+  var onHub = (location.hash.replace(/^#\/?/, "").split("/")[0] || "") === "hub";
   var bar = h("header", { class: "appbar" },
     h("div", { class: "inner" },
       h("div", { class: "brand" },
@@ -122,7 +128,8 @@ function appbar() {
       ),
       h("div", { class: "spacer" }),
       p && p.code ? h("div", { class: "code-chip", title: "Ваш анонимный код" }, p.code) : null,
-      h("button", { class: "hublink", onclick: function () { location.hash = "#/hub"; } }, "На главную")
+      p && p.code ? h("button", { class: "hublink", onclick: resetCode }, "Сменить код") : null,
+      onHub ? null : h("button", { class: "hublink", onclick: function () { location.hash = "#/hub"; } }, "На главную")
     )
   );
   return bar;
@@ -131,7 +138,7 @@ function pageHead(kicker, title, lead) {
   return h("div", { class: "hub-head screen" },
     kicker ? h("p", { class: "kicker", text: kicker }) : null,
     h("h1", { style: { fontSize: "26px", marginBottom: "8px" }, text: title }),
-    lead ? h("p", { class: "lead muted", style: { fontSize: "16px" }, text: lead }) : null
+    lead ? h("p", { class: "lead muted", style: { fontSize: "16px", whiteSpace: "pre-line" }, text: lead }) : null
   );
 }
 function autosaveHint() {
@@ -220,6 +227,18 @@ function renderHub(main) {
   tiles.forEach(function (t, i) {
     var stt = statusOf(t.inst);
     var lb = labels[stt] || labels[""];
+    var locked = i > 0 && statusOf(tiles[i - 1].inst) !== "done";
+    if (locked) {
+      grid.appendChild(h("div", { class: "tile locked" },
+        h("div", { class: "row1" }, h("div", { class: "idx", text: String(i + 1) }), h("h3", { text: t.title })),
+        h("p", { text: t.desc }),
+        h("div", { class: "foot" },
+          h("span", { class: "statuspill none", text: "сначала предыдущий шаг" }),
+          h("span", { class: "go" }, "Недоступно")
+        )
+      ));
+      return;
+    }
     var tile = h("div", { class: "tile " + (stt === "done" ? "done" : stt === "draft" ? "draft" : ""), onclick: function () { location.hash = t.hash; } },
       h("div", { class: "row1" }, h("div", { class: "idx", text: String(i + 1) }), h("h3", { text: t.title })),
       h("p", { text: t.desc }),
@@ -383,11 +402,7 @@ function renderTargets(main) {
         h("div", { class: "name", text: a.name }),
         h("div", { class: "simple", text: a.simple }),
         h("div", { class: "desc", text: a.desc }),
-        h("div", { class: "tags" },
-          h("span", { class: "tag " + (a.kind === "specific" ? "spec" : "univ"), text: a.kind === "specific" ? "специфический" : "универсальный" }),
-          a.measure ? h("span", { class: "tag", text: "замер · " + a.measure }) : null,
-          sugg.indexOf(a.num) >= 0 ? h("span", { class: "tag sugg", text: "по мотивации" }) : null
-        )
+        sugg.indexOf(a.num) >= 0 ? h("div", { class: "tags" }, h("span", { class: "tag sugg", text: "по мотивации" })) : null
       ),
       h("div", { class: "check" })
     );
@@ -448,9 +463,10 @@ function renderDiagnostic(main, stage) {
   main.appendChild(pageHead("Инструмент " + (stage === "pre" ? "3" : "4"), stageRu + " диагностика", "Отвечайте искренне, «правильных» ответов для вас нет. Ответы сохраняются, можно проходить с перерывами."));
   main.appendChild(autosaveHint());
 
+  var allowFull = /[?&]full=1/i.test(location.search) || window.PPM_SHOW_FULL === true;
   var modeText = h("span", {});
   var modeBtn = h("button", { class: "btn ghost", style: { padding: "8px 16px" }, onclick: function () { showAll = !showAll; updateModeNote(); buildBody(); } });
-  if (hasTargets) main.appendChild(h("div", { class: "note", style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" } }, modeText, modeBtn));
+  if (hasTargets) main.appendChild(h("div", { class: "note", style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" } }, modeText, allowFull ? modeBtn : null));
 
   var body = h("div", {});
   main.appendChild(body);
@@ -458,7 +474,7 @@ function renderDiagnostic(main, stage) {
   function updateModeNote() {
     if (!hasTargets) return;
     if (showAll) { modeText.textContent = "Показан полный замер из всех блоков."; modeBtn.textContent = "Только мои навыки-цели"; }
-    else { modeText.textContent = "Показаны задания по вашим навыкам-целям (" + targets.slice().sort(function (a, b) { return a - b; }).join(", ") + ")."; modeBtn.textContent = "Показать полный замер"; }
+    else { modeText.textContent = "Показаны задания по вашим выбранным навыкам."; modeBtn.textContent = "Показать полный замер"; }
   }
   function visibleBlocks() { return showAll ? D.blocks.slice() : D.blocks.filter(function (b) { return relBlocks[b.id]; }); }
 
@@ -481,12 +497,6 @@ function renderDiagnostic(main, stage) {
   function buildBody() {
     body.innerHTML = "";
     var vis = visibleBlocks();
-    var steps = h("div", { class: "steps" });
-    vis.forEach(function (b, i) {
-      steps.appendChild(h("div", { class: "st", "data-blk": b.id, onclick: function () { var t = $("#blk_" + b.id); if (t) t.scrollIntoView({ behavior: "smooth", block: "start" }); } },
-        h("span", { class: "dot", text: String(i + 1) }), b.param || b.title));
-    });
-    body.appendChild(steps);
     body.appendChild(h("div", { class: "progress-wrap" }, h("div", { class: "progress-bar" }, h("i", { id: "dgBar" })), h("div", { class: "progress-label" }, h("span", { id: "dgLab", text: "" }), h("span", { text: "" }))));
     vis.forEach(function (b) { body.appendChild(renderBlock(b, ans, inst, refresh, (b.id === "B5" && !showAll) ? relTasks : null)); });
     body.appendChild(h("p", { class: "err-line", id: "dgErr" }));
@@ -519,8 +529,7 @@ function blockComplete(b, a) {
 function renderBlock(b, ans, inst, refresh, allowedTasks) {
   var a = ans[b.id] || (ans[b.id] = {});
   var head = h("div", {},
-    h("div", { class: "section-eyebrow" }, h("b", { text: b.title }), h("span", { class: "ln" })),
-    b.intro ? h("p", { class: "lead muted", style: { marginTop: "-4px", whiteSpace: "pre-wrap" }, text: b.intro }) : null
+    b.intro ? h("p", { class: "lead muted", style: { whiteSpace: "pre-wrap" }, text: b.intro }) : null
   );
   var body = h("div", { class: "card", id: "blk_" + b.id });
   body.appendChild(head);

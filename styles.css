@@ -189,6 +189,9 @@ h1,h2,h3{color:var(--navy);line-height:1.18;margin:0}
 .tile:hover::before{background:var(--gold)}
 .tile.done::before{background:var(--ok)}
 .tile.draft::before{background:var(--gold)}
+.tile.locked{opacity:.5;cursor:not-allowed;box-shadow:none;background:#f3f1ec}
+.tile.locked:hover{transform:none;box-shadow:none;border-color:var(--line)}
+.tile.locked::before{background:var(--line)}
 .tile .row1{display:flex;align-items:center;gap:12px}
 .tile .idx{
   flex:0 0 auto;width:34px;height:34px;border-radius:10px;background:var(--navy);color:#fff;
