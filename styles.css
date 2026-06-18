@@ -192,6 +192,8 @@ h1,h2,h3{color:var(--navy);line-height:1.18;margin:0}
 .tile.locked{opacity:.5;cursor:not-allowed;box-shadow:none;background:#f3f1ec}
 .tile.locked:hover{transform:none;box-shadow:none;border-color:var(--line)}
 .tile.locked::before{background:var(--line)}
+.phase-row{grid-column:1 / -1;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin:8px 2px 0}
+.phase-row:first-child{margin-top:0}
 .tile .row1{display:flex;align-items:center;gap:12px}
 .tile .idx{
   flex:0 0 auto;width:34px;height:34px;border-radius:10px;background:var(--navy);color:#fff;

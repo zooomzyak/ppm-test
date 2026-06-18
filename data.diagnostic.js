@@ -558,20 +558,48 @@ window.PPM_DIAGNOSTIC = {
 };
 
 /* ============================================================
+   ВЫБОР ФОРМЫ ПО ЭТАПУ
+   На «pre» используется базовая форма блока, на «post» — параллельная
+   (свойство .post), если она задана в data.diagnostic.post.js.
+   ============================================================ */
+window.PPM_DIAGNOSTIC.blockById = function (id) {
+  for (var i = 0; i < this.blocks.length; i++) if (this.blocks[i].id === id) return this.blocks[i];
+  return null;
+};
+/* Возвращает блок для этапа: на post поля из .post замещают базовые. */
+window.PPM_DIAGNOSTIC.resolveBlock = function (b, stage) {
+  if (!b || stage !== "post" || !b.post) return b;
+  var m = {}, k;
+  for (k in b) if (b.hasOwnProperty(k) && k !== "post") m[k] = b[k];
+  for (k in b.post) if (b.post.hasOwnProperty(k)) m[k] = b.post[k];
+  return m;
+};
+/* Массив всех блоков, разрешённых под этап. */
+window.PPM_DIAGNOSTIC.formFor = function (stage) {
+  var self = this;
+  return this.blocks.map(function (b) { return self.resolveBlock(b, stage); });
+};
+/* Пункты блока для этапа (для функций подсчёта). */
+window.PPM_DIAGNOSTIC.itemsFor = function (id, stage) {
+  var b = this.blockById(id);
+  if (!b) return [];
+  if (stage === "post" && b.post && b.post.items) return b.post.items;
+  return b.items || [];
+};
+
+/* ============================================================
    ФУНКЦИИ ПОДСЧЁТА (методы window.PPM_DIAGNOSTIC)
    ans — объект ответов участника. Ключи — номера пунктов (n).
+   Второй аргумент stage ("pre"/"post") выбирает форму для подсчёта.
    ============================================================ */
 
 /* --- Блок 1. Критичность ---
    ans = {1:"b", 2:"c", ...}; raw = число ответов, совпавших с correct. */
-window.PPM_DIAGNOSTIC.scoreB1 = function (ans) {
+window.PPM_DIAGNOSTIC.scoreB1 = function (ans, stage) {
   ans = ans || {};
-  var block = null;
-  for (var i = 0; i < this.blocks.length; i++) {
-    if (this.blocks[i].id === "B1") { block = this.blocks[i]; break; }
-  }
+  var items = this.itemsFor("B1", stage);
   var raw = 0;
-  block.items.forEach(function (it) {
+  items.forEach(function (it) {
     if (ans[it.n] != null && ans[it.n] === it.correct) raw++;
   });
   return { raw: raw, range: [0, 9] };
@@ -582,14 +610,11 @@ window.PPM_DIAGNOSTIC.scoreB1 = function (ans) {
    Индекс <4 → балл points[индекс]. Индекс 4 (пятый вариант) — пропуск.
    raw = среднее арифметическое баллов по засчитанным сценариям.
    Если засчитанных нет — raw = null. */
-window.PPM_DIAGNOSTIC.scoreB2 = function (ans) {
+window.PPM_DIAGNOSTIC.scoreB2 = function (ans, stage) {
   ans = ans || {};
-  var block = null;
-  for (var i = 0; i < this.blocks.length; i++) {
-    if (this.blocks[i].id === "B2") { block = this.blocks[i]; break; }
-  }
+  var items = this.itemsFor("B2", stage);
   var sum = 0, answered = 0;
-  block.items.forEach(function (it) {
+  items.forEach(function (it) {
     var idx = ans[it.n];
     if (idx == null) return;          // не отвечено
     if (idx === 4) return;            // пятый вариант — пропуск (missing)
@@ -607,14 +632,11 @@ window.PPM_DIAGNOSTIC.scoreB2 = function (ans) {
    creativity = среднее по пунктам sub=="C";
    reflexivity = среднее по пунктам sub=="R";
    attentionPass = (ответ на пункт-ловушку === 1). */
-window.PPM_DIAGNOSTIC.scoreB3 = function (ans) {
+window.PPM_DIAGNOSTIC.scoreB3 = function (ans, stage) {
   ans = ans || {};
-  var block = null;
-  for (var i = 0; i < this.blocks.length; i++) {
-    if (this.blocks[i].id === "B3") { block = this.blocks[i]; break; }
-  }
+  var items = this.itemsFor("B3", stage);
   var cSum = 0, cN = 0, rSum = 0, rN = 0, attentionPass = false;
-  block.items.forEach(function (it) {
+  items.forEach(function (it) {
     var v = ans[it.n];
     if (it.sub === "C") {
       if (v != null) { cSum += v; cN++; }
@@ -636,12 +658,9 @@ window.PPM_DIAGNOSTIC.scoreB3 = function (ans) {
    sit = число пунктов из keySit с ответом "+";
    nad = число пунктов из keyNad с ответом "+";
    total = nad − sit. */
-window.PPM_DIAGNOSTIC.scoreB4 = function (ans) {
+window.PPM_DIAGNOSTIC.scoreB4 = function (ans, stage) {
   ans = ans || {};
-  var block = null;
-  for (var i = 0; i < this.blocks.length; i++) {
-    if (this.blocks[i].id === "B4") { block = this.blocks[i]; break; }
-  }
+  var block = this.blockById("B4");
   function norm(v) {
     if (v == null) return null;
     if (v === "+") return "+";

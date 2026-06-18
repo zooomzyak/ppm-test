@@ -214,17 +214,20 @@ function renderAnketa(main) {
    ==================================================================== */
 function renderHub(main) {
   var prof = getProfile();
-  main.appendChild(pageHead(null, "Главная", "Четыре инструмента. Рекомендуемый порядок — мотивация, выбор целей, первичная диагностика. Вторичную проходят после программы."));
+  main.appendChild(pageHead(null, "Главная", "Пять шагов по порядку. До программы — мотивация, выбор навыков-целей и первичная диагностика. После программы — вторичная диагностика и повторный замер мотивации. Следующий шаг открывается после отправки предыдущего."));
 
   var tiles = [
-    { inst: "motivation", stage: "", title: "Мотивация", desc: "Оцените 11 способностей по важности, интересу и уверенности. Около 7 минут.", hash: "#/motivation" },
-    { inst: "targets", stage: "", title: "Выбор целей", desc: "Отметьте навыки, которые будете развивать. 2–3 минуты.", hash: "#/targets" },
-    { inst: "diagnostic.pre", stage: "pre", title: "Первичная диагностика", desc: "Полный замер из шести блоков до программы. Около 60 минут, можно с перерывами.", hash: "#/diagnostic/pre" },
-    { inst: "diagnostic.post", stage: "post", title: "Вторичная диагностика", desc: "Тот же замер после программы. Сравнивается с первичной по вашему коду.", hash: "#/diagnostic/post" }
+    { inst: "motivation.pre", phase: "До программы", title: "Мотивация", desc: "Оцените 11 способностей по важности, интересу и уверенности. Около 7 минут.", hash: "#/motivation/pre" },
+    { inst: "targets", phase: "До программы", title: "Выбор навыков-целей", desc: "Отметьте навыки, которые будете развивать. 2–3 минуты.", hash: "#/targets" },
+    { inst: "diagnostic.pre", phase: "До программы", title: "Первичная диагностика", desc: "Замер до программы. Около 60 минут, можно с перерывами.", hash: "#/diagnostic/pre" },
+    { inst: "diagnostic.post", phase: "После программы", title: "Вторичная диагностика", desc: "Замер после программы в параллельной форме. Сравнивается с первичной по вашему коду.", hash: "#/diagnostic/post" },
+    { inst: "motivation.post", phase: "После программы", title: "Мотивация — повторно", desc: "Тот же опросник мотивации в конце программы.", hash: "#/motivation/post" }
   ];
   var labels = { "": ["none", "не начато"], draft: ["draft", "черновик"], done: ["done", "отправлено"] };
   var grid = h("div", { class: "hub-grid screen" });
+  var lastPhase = null;
   tiles.forEach(function (t, i) {
+    if (t.phase && t.phase !== lastPhase) { lastPhase = t.phase; grid.appendChild(h("div", { class: "phase-row" }, t.phase)); }
     var stt = statusOf(t.inst);
     var lb = labels[stt] || labels[""];
     var locked = i > 0 && statusOf(tiles[i - 1].inst) !== "done";
@@ -298,14 +301,15 @@ function showDone(opts, rec, ok) {
 /* ====================================================================
    МОТИВАЦИЯ (Методика 1)
    ==================================================================== */
-function renderMotivation(main) {
+function renderMotivation(main, stage) {
   var M = window.PPM_MOTIVATION;
   if (!M) { main.appendChild(notReady()); return; }
-  var inst = "motivation";
+  stage = (stage === "post") ? "post" : "pre";
+  var inst = "motivation." + stage;
   var ans = LS.get(draftKey(inst), { grid: {} });
   ans.grid = ans.grid || {};
 
-  main.appendChild(pageHead("Инструмент 1", M.title || "Мотивация развития", M.intro));
+  main.appendChild(pageHead(stage === "post" ? "После программы · повторно" : "Инструмент 1", M.title || "Мотивация развития", M.intro));
   main.appendChild(autosaveHint());
 
   var prog = h("div", { class: "progress-wrap" }, h("div", { class: "progress-bar" }, h("i", { id: "motBar" })), h("div", { class: "progress-label" }, h("span", { id: "motLab", text: "Отвечено 0 из 11" }), h("span", { text: "умения" })));
@@ -342,16 +346,24 @@ function renderMotivation(main) {
       var doneCount = 0; M.abilities.forEach(function (a) { var g = ans.grid[a.num]; if (g && g.Ц && g.И && g.У) doneCount++; });
       if (doneCount < M.abilities.length) { showErr("motErr", "Оцените все 11 умений по трём шкалам (отвечено " + doneCount + " из 11)."); return; }
       var res = M.score(ans);
-      LS.set(K_SUGG, res.suggestedTargets || []);
-      finishInstrument({ instrument: "motivation", stage: "", payload: { answers: ans, score: res }, title: "Мотивация пройдена", message: "Ответы отправлены. Ниже ваш профиль и кандидаты в цели, отметить их можно на следующем шаге.", resultNode: motivationResult(res, M) }, ev.currentTarget);
+      if (stage === "pre") LS.set(K_SUGG, res.suggestedTargets || []);
+      finishInstrument({
+        instrument: "motivation", stage: stage, statusKey: inst,
+        payload: { stage: stage, answers: ans, score: res },
+        title: stage === "post" ? "Повторная мотивация пройдена" : "Мотивация пройдена",
+        message: stage === "post"
+          ? "Ответы отправлены. Этот замер сравнят с вашим первым по коду участника. Спасибо!"
+          : "Ответы отправлены. Ниже ваш профиль и кандидаты в цели, отметить их можно на следующем шаге.",
+        resultNode: motivationResult(res, M, stage)
+      }, ev.currentTarget);
     } }, "Завершить и отправить", h("span", { class: "arr", text: "→" }))
   ));
   refresh();
 }
-function motivationResult(res, M) {
+function motivationResult(res, M, stage) {
   var nameByNum = {}; (M.abilities || []).forEach(function (a) { nameByNum[a.num] = a.name; });
   var box = h("div", { class: "summary" });
-  box.appendChild(h("div", { class: "l" }, h("span", {}, "Кандидаты в цели (высокая ценность)"), h("b", { text: (res.suggestedTargets && res.suggestedTargets.length ? res.suggestedTargets.map(function (n) { return n + " " + (nameByNum[n] || ""); }).join(", ") : "по результату не выделились") })));
+  box.appendChild(h("div", { class: "l" }, h("span", {}, stage === "post" ? "Наибольшая ценность по итогу" : "Кандидаты в цели (высокая ценность)"), h("b", { text: (res.suggestedTargets && res.suggestedTargets.length ? res.suggestedTargets.map(function (n) { return n + " " + (nameByNum[n] || ""); }).join(", ") : "по результату не выделились") })));
   if (res.lowConfidence && res.lowConfidence.length)
     box.appendChild(h("div", { class: "l" }, h("span", {}, "Нужна поддержка (низкая уверенность)"), h("b", { text: res.lowConfidence.map(function (n) { return n + " " + (nameByNum[n] || ""); }).join(", ") })));
   return box;
@@ -452,6 +464,7 @@ function renderDiagnostic(main, stage) {
   if (!D || !D.blocks) { main.appendChild(notReady()); return; }
   stage = (stage === "post") ? "post" : "pre";
   var inst = "diagnostic." + stage;
+  var BLOCKS = D.formFor(stage);          // на post — параллельные формы
   var ans = LS.get(draftKey(inst), {});
   var targets = ((LS.get(draftKey("targets"), {}) || {}).picks) || [];
   var relBlocks = {}, relTasks = {};
@@ -476,7 +489,7 @@ function renderDiagnostic(main, stage) {
     if (showAll) { modeText.textContent = "Показан полный замер из всех блоков."; modeBtn.textContent = "Только мои навыки-цели"; }
     else { modeText.textContent = "Показаны задания по вашим выбранным навыкам."; modeBtn.textContent = "Показать полный замер"; }
   }
-  function visibleBlocks() { return showAll ? D.blocks.slice() : D.blocks.filter(function (b) { return relBlocks[b.id]; }); }
+  function visibleBlocks() { return showAll ? BLOCKS.slice() : BLOCKS.filter(function (b) { return relBlocks[b.id]; }); }
 
   function refresh() {
     var closedTotal = 0, closedDone = 0;
@@ -631,13 +644,14 @@ function openlistBlock(b, a, inst, ans, refresh) {
 }
 
 function submitDiagnostic(D, ans, inst, stage, btn, visibleIds, showAll) {
-  var visSet = {}; (visibleIds || D.blocks.map(function (b) { return b.id; })).forEach(function (id) { visSet[id] = true; });
+  var BLOCKS = D.formFor(stage);
+  var visSet = {}; (visibleIds || BLOCKS.map(function (b) { return b.id; })).forEach(function (id) { visSet[id] = true; });
   var scores = {};
-  function sc(id, fn) { if (visSet[id] && fn) { try { scores[id] = fn(ans[id] || {}); } catch (e) {} } }
+  function sc(id, fn) { if (visSet[id] && fn) { try { scores[id] = fn.call(D, ans[id] || {}, stage); } catch (e) {} } }
   sc("B1", D.scoreB1); sc("B2", D.scoreB2); sc("B3", D.scoreB3); sc("B4", D.scoreB4);
 
   var miss = [];
-  D.blocks.forEach(function (b) {
+  BLOCKS.forEach(function (b) {
     if (!visSet[b.id]) return;
     if (b.type === "single" || b.type === "scenario" || b.type === "likert7" || b.type === "plusminus") {
       if (!blockComplete(b, ans[b.id])) miss.push(b.param || b.title);
@@ -673,7 +687,7 @@ function render() {
 
   if (root === "anketa") renderAnketa(main);
   else if (root === "hub") renderHub(main);
-  else if (root === "motivation") renderMotivation(main);
+  else if (root === "motivation") renderMotivation(main, parts[1]);
   else if (root === "targets") renderTargets(main);
   else if (root === "diagnostic") renderDiagnostic(main, parts[1]);
   else { location.hash = "#/hub"; return; }
