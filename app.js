@@ -165,12 +165,16 @@ function scaleControl(n, value, onPick, labels) {
    ==================================================================== */
 function renderAnketa(main) {
   var prof = getProfile() || {};
-  var st = { age: prof.age || "", ident: prof.ident || "" };
+  var st = {
+    ident: prof.ident || "", age: prof.age || "", gender: prof.gender || "",
+    experience: prof.experience || "", position: prof.position || "",
+    degree: prof.degree || "", specialty: prof.specialty || "", university: prof.university || ""
+  };
 
-  main.appendChild(pageHead("Шаг 1", "Ваш код участника", "Придумайте короткий код и запомните его. По нему ваши ответы до и после программы свяжутся между собой. Возраст нужен только для общей статистики."));
+  main.appendChild(pageHead("Шаг 1", "Анкета участника", "Заполните короткую анкету о себе. Эти данные нужны только для статистического анализа результатов, имя нигде не указывается."));
 
   var codeBox = h("div", { class: "note", style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" } },
-    h("span", {}, "Запомните этот код"),
+    h("span", {}, "Ваш код участника"),
     h("b", { id: "codeView", style: { fontSize: "18px", letterSpacing: ".04em" }, text: prof.code || "—" })
   );
   function refreshCode() {
@@ -190,15 +194,27 @@ function renderAnketa(main) {
 
   var card = h("div", { class: "card pad-lg" },
     codeBox,
-    field("Идентификатор", "Придумайте короткий код, который легко запомните. Например, КОТ7 или любимое слово с числом. Запишите его, он понадобится в конце программы для повторного прохождения. Регистр и пробелы не важны.", inp("ident")),
+    field("Идентификатор", "Впишите любое памятное вам слово или короткий код, например КОТ7. Он свяжет ваши ответы до и после программы, не раскрывая имени, и понадобится в конце для повторного прохождения. Регистр и пробелы не важны.", inp("ident")),
     field("Возраст, полных лет", null, inp("age", "number")),
-    h("p", { class: "err-line", id: "anketaErr" }, "Введите идентификатор и возраст."),
+    field("Пол", null, inp("gender")),
+    field("Стаж работы преподавателем в вузе, полных лет", null, inp("experience", "number")),
+    field("Должность в университете", null, inp("position")),
+    field("Учёная степень (если есть)", null, inp("degree")),
+    field("Специальность, которую вы преподаёте", null, inp("specialty")),
+    field("Вуз, в котором вы преподаёте", null, inp("university")),
+    h("p", { class: "err-line", id: "anketaErr" }, "Заполните все поля. Учёную степень можно оставить пустой, если её нет."),
     h("div", { class: "inline-actions" },
       h("button", { class: "btn primary big", onclick: function () {
         var code = normIdent(st.ident);
         var ageOk = st.age !== "" && Number(st.age) > 0;
-        if (!code || !ageOk) { $("#anketaErr").classList.add("show"); return; }
-        var profile = { age: st.age, ident: st.ident, code: code };
+        var expOk = st.experience !== "" && Number(st.experience) >= 0;
+        var filled = code && ageOk && expOk && st.gender.trim() && st.position.trim() && st.specialty.trim() && st.university.trim();
+        if (!filled) { $("#anketaErr").classList.add("show"); return; }
+        var profile = {
+          code: code, ident: st.ident, age: st.age, gender: st.gender,
+          experience: st.experience, position: st.position, degree: st.degree,
+          specialty: st.specialty, university: st.university
+        };
         LS.set(K_PROFILE, profile);
         toast("Готово, ваш код " + code, "ok");
         location.hash = "#/hub";
