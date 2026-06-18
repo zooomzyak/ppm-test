@@ -325,13 +325,13 @@ function renderMotivation(main) {
   var M = window.PPM_MOTIVATION;
   if (!M) { main.appendChild(notReady()); return; }
   var inst = "motivation";
-  var ans = LS.get(draftKey(inst), { grid: {}, partB: { picks: [], motives: {} } });
-  ans.grid = ans.grid || {}; ans.partB = ans.partB || { picks: [], motives: {} };
+  var ans = LS.get(draftKey(inst), { grid: {} });
+  ans.grid = ans.grid || {};
 
   main.appendChild(pageHead("Инструмент 1", M.title || "Мотивация развития", M.intro));
   main.appendChild(autosaveHint());
 
-  var prog = h("div", { class: "progress-wrap" }, h("div", { class: "progress-bar" }, h("i", { id: "motBar" })), h("div", { class: "progress-label" }, h("span", { id: "motLab", text: "Отвечено 0 из 11" }), h("span", { text: "часть А" })));
+  var prog = h("div", { class: "progress-wrap" }, h("div", { class: "progress-bar" }, h("i", { id: "motBar" })), h("div", { class: "progress-label" }, h("span", { id: "motLab", text: "Отвечено 0 из 11" }), h("span", { text: "умения" })));
   main.appendChild(prog);
 
   function refresh() {
@@ -342,7 +342,7 @@ function renderMotivation(main) {
   }
 
   // Часть А
-  main.appendChild(h("div", { class: "section-eyebrow" }, h("b", { text: "Часть А · оцените каждое умение" }), h("span", { class: "ln" })));
+  main.appendChild(h("div", { class: "section-eyebrow" }, h("b", { text: "Оцените каждое умение" }), h("span", { class: "ln" })));
   M.abilities.forEach(function (a) {
     var g = ans.grid[a.num] || (ans.grid[a.num] = {});
     var rows = h("div", { class: "triple" });
@@ -358,65 +358,15 @@ function renderMotivation(main) {
     ));
   });
 
-  // Часть Б
-  main.appendChild(h("div", { class: "section-eyebrow" }, h("b", { text: "Часть Б · приоритет и мотив" }), h("span", { class: "ln" })));
-  var bWrap = h("div", { class: "card" }, h("p", { class: "lead", text: M.partB.instruction }));
-  var picksHost = h("div");
-  M.abilities.forEach(function (a) {
-    var on = ans.partB.picks.indexOf(a.num) >= 0;
-    var motivesBox = h("div", { style: { display: on ? "block" : "none", margin: "10px 0 4px 42px" } });
-    function buildMotives() {
-      motivesBox.innerHTML = "";
-      var sel = ans.partB.motives[a.num] || (ans.partB.motives[a.num] = []);
-      M.partB.motives.forEach(function (m) {
-        var mon = sel.indexOf(m.id) >= 0;
-        var c = h("label", { class: "choice" + (mon ? " on" : ""), style: { padding: "9px 12px" } },
-          h("span", { class: "mark" }), h("span", { class: "txt", text: m.text }));
-        c.addEventListener("click", function () {
-          var k = sel.indexOf(m.id); if (k >= 0) sel.splice(k, 1); else sel.push(m.id);
-          c.classList.toggle("on"); autosave(inst, ans);
-        });
-        motivesBox.appendChild(c);
-      });
-    }
-    var row = h("div", {},
-      (function () {
-        var ab = h("div", { class: "ability" + (on ? " on" : "") },
-          h("div", { class: "num", text: String(a.num) }),
-          h("div", { class: "body" }, h("div", { class: "name", text: a.name }), h("div", { class: "simple", text: a.facing })),
-          h("div", { class: "check" })
-        );
-        ab.addEventListener("click", function () {
-          var idx = ans.partB.picks.indexOf(a.num);
-          if (idx >= 0) { ans.partB.picks.splice(idx, 1); on = false; }
-          else {
-            if (ans.partB.picks.length >= (M.partB.pick || 3)) { toast("Можно выбрать " + (M.partB.pick || 3), "err"); return; }
-            ans.partB.picks.push(a.num); on = true;
-          }
-          ab.classList.toggle("on", on); motivesBox.style.display = on ? "block" : "none";
-          if (on) buildMotives();
-          autosave(inst, ans);
-        });
-        return ab;
-      })(),
-      motivesBox
-    );
-    if (on) buildMotives();
-    picksHost.appendChild(row);
-  });
-  bWrap.appendChild(picksHost);
-  main.appendChild(bWrap);
-
   main.appendChild(h("p", { class: "err-line", id: "motErr" }));
   main.appendChild(h("div", { class: "inline-actions" },
     h("button", { class: "btn primary big", onclick: function (ev) {
       // мягкая валидация
       var doneCount = 0; M.abilities.forEach(function (a) { var g = ans.grid[a.num]; if (g && g.Ц && g.И && g.У) doneCount++; });
       if (doneCount < M.abilities.length) { showErr("motErr", "Оцените все 11 умений по трём шкалам (отвечено " + doneCount + " из 11)."); return; }
-      if (ans.partB.picks.length !== (M.partB.pick || 3)) { showErr("motErr", "В части Б выберите ровно " + (M.partB.pick || 3) + " умения."); return; }
       var res = M.score(ans);
       LS.set(K_SUGG, res.suggestedTargets || []);
-      finishInstrument({ instrument: "motivation", stage: "", payload: { answers: ans, score: res }, title: "Мотивация пройдена", message: "Ответы отправлены. Ниже — что стоит развивать в первую очередь.", resultNode: motivationResult(res, M) }, ev.currentTarget);
+      finishInstrument({ instrument: "motivation", stage: "", payload: { answers: ans, score: res }, title: "Мотивация пройдена", message: "Ответы отправлены. Ниже ваш профиль и кандидаты в цели, отметить их можно на следующем шаге.", resultNode: motivationResult(res, M) }, ev.currentTarget);
     } }, "Завершить и отправить", h("span", { class: "arr", text: "→" }))
   ));
   refresh();
@@ -424,10 +374,9 @@ function renderMotivation(main) {
 function motivationResult(res, M) {
   var nameByNum = {}; (M.abilities || []).forEach(function (a) { nameByNum[a.num] = a.name; });
   var box = h("div", { class: "summary" });
-  box.appendChild(h("div", { class: "l" }, h("span", {}, "Рекомендованные цели"), h("b", { text: (res.suggestedTargets && res.suggestedTargets.length ? res.suggestedTargets.map(function (n) { return n + " " + (nameByNum[n] || ""); }).join(", ") : "по результату не выделились") })));
+  box.appendChild(h("div", { class: "l" }, h("span", {}, "Кандидаты в цели (высокая ценность)"), h("b", { text: (res.suggestedTargets && res.suggestedTargets.length ? res.suggestedTargets.map(function (n) { return n + " " + (nameByNum[n] || ""); }).join(", ") : "по результату не выделились") })));
   if (res.lowConfidence && res.lowConfidence.length)
-    box.appendChild(h("div", { class: "l" }, h("span", {}, "Нужна поддержка (низкая уверенность)"), h("b", { text: res.lowConfidence.map(function (n) { return String(n); }).join(", ") })));
-  box.appendChild(h("div", { class: "l" }, h("span", {}, "Доля внутренней мотивации"), h("b", { text: Math.round((res.autonomousShare || 0) * 100) + "%" })));
+    box.appendChild(h("div", { class: "l" }, h("span", {}, "Нужна поддержка (низкая уверенность)"), h("b", { text: res.lowConfidence.map(function (n) { return n + " " + (nameByNum[n] || ""); }).join(", ") })));
   return box;
 }
 function showErr(id, msg) { var e = $("#" + id); if (e) { e.textContent = msg; e.classList.add("show"); e.scrollIntoView({ behavior: "smooth", block: "center" }); } }
@@ -438,19 +387,38 @@ function showErr(id, msg) { var e = $("#" + id); if (e) { e.textContent = msg; e
 function renderTargets(main) {
   var A = window.PPM_ABILITIES;
   if (!A) { main.appendChild(notReady()); return; }
+  var M = window.PPM_MOTIVATION;
+  var MOT = (M && M.partB && M.partB.motives) || [];
   var inst = "targets";
   var draft = LS.get(draftKey(inst), null);
   var picks = (draft && draft.picks) || LS.get(K_SUGG, []).slice();
+  var motives = (draft && draft.motives) || {};
   var sugg = LS.get(K_SUGG, []);
 
-  main.appendChild(pageHead("Инструмент 2", "Выбор навыков-целей", "Отметьте 1–3 навыка, над которыми будете работать в программе. По ним пойдёт сравнение «до и после»."));
+  main.appendChild(pageHead("Инструмент 2", "Выбор навыков-целей", "Отметьте 1–3 навыка, над которыми будете работать в программе. Для каждого отметьте, что вами движет. По этим навыкам пойдёт сравнение «до и после»."));
   if (sugg.length) main.appendChild(h("div", { class: "note", style: { marginBottom: "16px" } }, "По результатам мотивации заранее отмечены: ", h("b", { text: sugg.join(", ") }), ". Можно изменить."));
   main.appendChild(autosaveHint());
 
-  function save() { LS.set(draftKey(inst), { picks: picks }); if (statusOf(inst) !== "done") setStatus(inst, "draft"); updateBar(); }
+  function save() { LS.set(draftKey(inst), { picks: picks, motives: motives }); if (statusOf(inst) !== "done") setStatus(inst, "draft"); updateBar(); }
   var host = h("div", { class: "screen" });
   A.forEach(function (a) {
     var on = picks.indexOf(a.num) >= 0;
+    var motivesBox = h("div", { style: { display: on ? "block" : "none", margin: "2px 0 16px 42px" } });
+    function buildMotives() {
+      motivesBox.innerHTML = "";
+      motivesBox.appendChild(h("div", { class: "hint", style: { margin: "0 0 6px" }, text: "Что вами движет? Можно несколько." }));
+      var sel = motives[a.num] || (motives[a.num] = []);
+      MOT.forEach(function (m) {
+        var mon = sel.indexOf(m.id) >= 0;
+        var c = h("label", { class: "choice" + (mon ? " on" : ""), style: { padding: "9px 12px" } },
+          h("span", { class: "mark" }), h("span", { class: "txt", text: m.text }));
+        c.addEventListener("click", function () {
+          var k = sel.indexOf(m.id); if (k >= 0) sel.splice(k, 1); else sel.push(m.id);
+          c.classList.toggle("on"); save();
+        });
+        motivesBox.appendChild(c);
+      });
+    }
     var row = h("div", { class: "ability" + (on ? " on" : "") },
       h("div", { class: "num", text: String(a.num) }),
       h("div", { class: "body" },
@@ -467,11 +435,15 @@ function renderTargets(main) {
     );
     row.addEventListener("click", function () {
       var idx = picks.indexOf(a.num);
-      if (idx >= 0) picks.splice(idx, 1);
-      else { if (picks.length >= 3) { toast("Рекомендуем не больше трёх целей", "err"); } picks.push(a.num); }
-      row.classList.toggle("on", picks.indexOf(a.num) >= 0); save();
+      if (idx >= 0) { picks.splice(idx, 1); on = false; }
+      else { if (picks.length >= 3) { toast("Рекомендуем не больше трёх целей", "err"); } picks.push(a.num); on = true; }
+      row.classList.toggle("on", on);
+      motivesBox.style.display = on ? "block" : "none";
+      if (on) buildMotives();
+      save();
     });
-    host.appendChild(row);
+    if (on) buildMotives();
+    host.appendChild(h("div", {}, row, motivesBox));
   });
   main.appendChild(host);
 
@@ -480,11 +452,16 @@ function renderTargets(main) {
     h("div", { class: "spacer" }),
     h("button", { class: "btn primary", onclick: function (ev) {
       if (!picks.length) { toast("Отметьте хотя бы один навык", "err"); return; }
+      var missing = picks.filter(function (n) { var s = motives[n]; return !s || !s.length; });
+      if (missing.length) { toast("Отметьте мотив для каждого выбранного навыка", "err"); return; }
       var A2 = window.PPM_ABILITIES; var nameByNum = {}; A2.forEach(function (x) { nameByNum[x.num] = x; });
-      var chosen = picks.slice().sort(function (a, b) { return a - b; }).map(function (n) { return { num: n, name: nameByNum[n] ? nameByNum[n].name : "", simple: nameByNum[n] ? nameByNum[n].simple : "" }; });
+      var ordered = picks.slice().sort(function (a, b) { return a - b; });
+      var chosen = ordered.map(function (n) { return { num: n, name: nameByNum[n] ? nameByNum[n].name : "", simple: nameByNum[n] ? nameByNum[n].simple : "", motives: (motives[n] || []).slice() }; });
+      var mot = (M && M.scoreMotives) ? M.scoreMotives(motives) : { autonomousShare: 0 };
       var sumNode = h("div", { class: "summary" });
       chosen.forEach(function (c) { sumNode.appendChild(h("div", { class: "l" }, h("span", { text: c.num + " · " + c.name }), h("b", { text: c.simple }))); });
-      finishInstrument({ instrument: "targets", stage: "", payload: { picks: picks.slice().sort(function (a, b) { return a - b; }), chosen: chosen }, title: "Цели зафиксированы", message: "Ваши навыки-цели сохранены и отправлены.", resultNode: sumNode }, ev.currentTarget);
+      sumNode.appendChild(h("div", { class: "l" }, h("span", {}, "Доля внутренней мотивации"), h("b", { text: Math.round((mot.autonomousShare || 0) * 100) + "%" })));
+      finishInstrument({ instrument: "targets", stage: "", payload: { picks: ordered, chosen: chosen, motives: motives, autonomousShare: mot.autonomousShare }, title: "Цели зафиксированы", message: "Ваши навыки-цели и мотивы сохранены и отправлены.", resultNode: sumNode }, ev.currentTarget);
     } }, "Сохранить цели", h("span", { class: "arr", text: "→" }))
   ));
   main.appendChild(bar);

@@ -42,118 +42,61 @@ window.PPM_MOTIVATION = {
   }
 };
 
-/* Подсчёт по ключу из черновика:
-   - Индекс ценности параметра = (Ц + И) / 2 (диапазон 1–5).
-   - Ожидание успеха = У (диапазон 1–5).
-   - Мотив мишени автономный, если в Части Б отмечены преимущественно автономные пункты
-     (число автономных отметок не меньше числа контролируемых).
-   - Мишени развития = выбранные в Части Б способности с автономным мотивом и индексом ценности ≥ 4.
-   - Низкое У (≤ 3) при высокой ценности — мишень, требующая большей поддержки.
-   Функция устойчива к отсутствующим/частичным ответам. */
+/* Подсчёт части А.
+   Индекс ценности параметра = (Ц + И) / 2 (диапазон 1–5). Ожидание успеха = У.
+   Кандидаты в цели = параметры с ценностью ≥ 4, не больше трёх по убыванию ценности.
+   Низкая уверенность = ценность ≥ 4 при У ≤ 3.
+   Устойчиво к отсутствующим и частичным ответам. */
 window.PPM_MOTIVATION.score = function (answers) {
   var data = window.PPM_MOTIVATION;
-
-  // Карта мотивов id -> тип (autonomous / controlled).
-  var motiveType = {};
-  for (var i = 0; i < data.partB.motives.length; i++) {
-    var m = data.partB.motives[i];
-    motiveType[m.id] = m.type;
-  }
-
-  // Безопасный доступ к структуре ответов.
   answers = answers || {};
   var grid = answers.grid || {};
-  var partB = answers.partB || {};
-  var picks = Array.isArray(partB.picks) ? partB.picks : [];
-  var motives = partB.motives || {};
+  function num(v) { var n = Number(v); return isFinite(n) ? n : null; }
 
-  function num(v) {
-    var n = Number(v);
-    return isFinite(n) ? n : null;
-  }
-
-  // Показатели по каждой из 11 способностей.
   var perAbility = [];
-  var perAbilityByNum = {};
   for (var a = 0; a < data.abilities.length; a++) {
-    var abilityNum = data.abilities[a].num;
-    var cell = grid[String(abilityNum)] || grid[abilityNum] || {};
-
-    var c = num(cell["Ц"]);
-    var inter = num(cell["И"]);
-    var u = num(cell["У"]);
-
+    var an = data.abilities[a].num;
+    var cell = grid[String(an)] || grid[an] || {};
+    var c = num(cell["Ц"]), inter = num(cell["И"]), u = num(cell["У"]);
     var value = null;
-    if (c !== null && inter !== null) {
-      value = (c + inter) / 2;
-    } else if (c !== null) {
-      value = c;
-    } else if (inter !== null) {
-      value = inter;
-    }
-
-    var rec = { num: abilityNum, value: value, expectation: u };
-    perAbility.push(rec);
-    perAbilityByNum[abilityNum] = rec;
+    if (c !== null && inter !== null) value = (c + inter) / 2;
+    else if (c !== null) value = c;
+    else if (inter !== null) value = inter;
+    perAbility.push({ num: an, value: value, expectation: u });
   }
 
-  // Подсчёт автономных/контролируемых отметок для одной способности.
-  function countMotives(abilityNum) {
-    var marks = motives[String(abilityNum)];
-    if (!marks && marks !== 0) marks = motives[abilityNum];
-    if (!Array.isArray(marks)) marks = [];
+  var byValue = perAbility.filter(function (r) { return r.value !== null; })
+    .slice().sort(function (x, y) { return (y.value || 0) - (x.value || 0); });
+  var suggestedTargets = byValue.filter(function (r) { return r.value >= 4; })
+    .slice(0, 3).map(function (r) { return r.num; });
+  var lowConfidence = perAbility.filter(function (r) {
+    return r.value !== null && r.value >= 4 && r.expectation !== null && r.expectation <= 3;
+  }).map(function (r) { return r.num; });
+
+  return { perAbility: perAbility, suggestedTargets: suggestedTargets, lowConfidence: lowConfidence };
+};
+
+/* Подсчёт автономности мотивов, отмеченных на шаге выбора целей.
+   motivesMap = { номерСпособности: [идМотива, ...] }.
+   Мотив мишени автономный, если автономных отметок не меньше контролируемых. */
+window.PPM_MOTIVATION.scoreMotives = function (motivesMap) {
+  var data = window.PPM_MOTIVATION;
+  var type = {};
+  (data.partB.motives || []).forEach(function (m) { type[m.id] = m.type; });
+  motivesMap = motivesMap || {};
+  var totalMarks = 0, autoMarks = 0, perTarget = {};
+  for (var k in motivesMap) {
+    if (!Object.prototype.hasOwnProperty.call(motivesMap, k)) continue;
+    var arr = motivesMap[k];
+    if (!Array.isArray(arr)) continue;
     var auto = 0, ctrl = 0;
-    for (var k = 0; k < marks.length; k++) {
-      var t = motiveType[marks[k]];
+    for (var i = 0; i < arr.length; i++) {
+      var t = type[arr[i]];
       if (t === "autonomous") auto++;
       else if (t === "controlled") ctrl++;
     }
-    return { auto: auto, ctrl: ctrl, total: auto + ctrl };
+    perTarget[k] = { auto: auto, ctrl: ctrl, autonomous: auto >= ctrl && (auto + ctrl) > 0 };
+    autoMarks += auto; totalMarks += auto + ctrl;
   }
-
-  // Мишени развития и мишени, требующие поддержки.
-  var suggestedTargets = [];
-  var lowConfidence = [];
-  var seenPick = {};
-  for (var p = 0; p < picks.length; p++) {
-    var pn = num(picks[p]);
-    if (pn === null) continue;
-    if (seenPick[pn]) continue;          // защита от дублей в picks
-    seenPick[pn] = true;
-
-    var rec2 = perAbilityByNum[pn];
-    if (!rec2) continue;                  // выбран несуществующий номер — пропускаем
-
-    var cm = countMotives(pn);
-    var autonomous = cm.auto >= cm.ctrl && cm.total > 0; // преимущественно автономный мотив
-    var valuableEnough = rec2.value !== null && rec2.value >= 4;
-
-    if (autonomous && valuableEnough) {
-      suggestedTargets.push(pn);
-      if (rec2.expectation !== null && rec2.expectation <= 3) {
-        lowConfidence.push(pn);
-      }
-    }
-  }
-
-  // Доля автономных мотивов среди всех отметок Части Б (по всем способностям).
-  var totalMarks = 0, autoMarks = 0;
-  for (var keyNum in motives) {
-    if (!Object.prototype.hasOwnProperty.call(motives, keyNum)) continue;
-    var arr = motives[keyNum];
-    if (!Array.isArray(arr)) continue;
-    for (var j = 0; j < arr.length; j++) {
-      var tt = motiveType[arr[j]];
-      if (tt === "autonomous") { autoMarks++; totalMarks++; }
-      else if (tt === "controlled") { totalMarks++; }
-    }
-  }
-  var autonomousShare = totalMarks > 0 ? autoMarks / totalMarks : 0;
-
-  return {
-    perAbility: perAbility,
-    suggestedTargets: suggestedTargets,
-    lowConfidence: lowConfidence,
-    autonomousShare: autonomousShare
-  };
+  return { autonomousShare: totalMarks > 0 ? autoMarks / totalMarks : 0, perTarget: perTarget };
 };
