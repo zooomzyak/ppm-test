@@ -296,18 +296,21 @@ function finishInstrument(opts, btn) {
 function showDone(opts, rec, ok) {
   var main = $("main.wrap"); if (!main) return;
   main.innerHTML = "";
-  var actions = h("div", { class: "actions" },
-    h("button", { class: "btn gold", onclick: function () { copyText(recordToText(rec)); } }, "Скопировать ответы"),
-    h("button", { class: "btn ghost", style: { color: "#fff", borderColor: "rgba(255,255,255,.4)" }, onclick: function () {
-      download("ппм_" + rec.meta.code + "_" + rec.meta.instrument + (rec.meta.stage ? "_" + rec.meta.stage : "") + ".json", recordToText(rec));
-    } }, "Скачать файл"),
-    h("button", { class: "btn", onclick: function () { location.hash = "#/hub"; } }, "На главную")
-  );
+  var homeBtn = h("button", { class: "btn", onclick: function () { location.hash = "#/hub"; } }, "На главную");
+  // при успешной отправке — только «На главную»; при сбое оставляем запасной путь (копировать/скачать)
+  var actions = ok
+    ? h("div", { class: "actions" }, homeBtn)
+    : h("div", { class: "actions" },
+        h("button", { class: "btn gold", onclick: function () { copyText(recordToText(rec)); } }, "Скопировать ответы"),
+        h("button", { class: "btn ghost", style: { color: "#fff", borderColor: "rgba(255,255,255,.4)" }, onclick: function () {
+          download("ппм_" + rec.meta.code + "_" + rec.meta.instrument + (rec.meta.stage ? "_" + rec.meta.stage : "") + ".json", recordToText(rec));
+        } }, "Скачать файл"),
+        homeBtn
+      );
   var card = h("div", { class: "done-card screen" },
     h("div", { class: "done-check" }, h("span", { html: '<svg viewBox="0 0 24 24" fill="none" stroke="#E7CE8E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>' })),
     h("h2", { text: opts.title || "Готово" }),
     h("p", { text: ok ? (opts.message || "Ответы отправлены исследователю. Спасибо.") : "Ответы сохранены, но отправить автоматически не вышло (возможно, нет сети или сайт открыт локально). Нажмите «Скопировать ответы» или «Скачать файл» и пришлите их." }),
-    opts.resultNode || null,
     actions
   );
   main.appendChild(card);
@@ -366,23 +369,14 @@ function renderMotivation(main, stage) {
       finishInstrument({
         instrument: "motivation", stage: stage, statusKey: inst,
         payload: { stage: stage, answers: ans, score: res },
-        title: stage === "post" ? "Повторная мотивация пройдена" : "Мотивация пройдена",
+        title: "Методика 1 пройдена",
         message: stage === "post"
           ? "Ответы отправлены. Этот замер сравнят с вашим первым по коду участника. Спасибо!"
-          : "Ответы отправлены. Ниже ваш профиль и кандидаты в цели, отметить их можно на следующем шаге.",
-        resultNode: motivationResult(res, M, stage)
+          : "Ответы отправлены. Спасибо. На следующем шаге можно отметить навыки-цели."
       }, ev.currentTarget);
     } }, "Завершить и отправить", h("span", { class: "arr", text: "→" }))
   ));
   refresh();
-}
-function motivationResult(res, M, stage) {
-  var nameByNum = {}; (M.abilities || []).forEach(function (a) { nameByNum[a.num] = a.name; });
-  var box = h("div", { class: "summary" });
-  box.appendChild(h("div", { class: "l" }, h("span", {}, stage === "post" ? "Наибольшая ценность по итогу" : "Кандидаты в цели (высокая ценность)"), h("b", { text: (res.suggestedTargets && res.suggestedTargets.length ? res.suggestedTargets.map(function (n) { return n + " " + (nameByNum[n] || ""); }).join(", ") : "по результату не выделились") })));
-  if (res.lowConfidence && res.lowConfidence.length)
-    box.appendChild(h("div", { class: "l" }, h("span", {}, "Нужна поддержка (низкая уверенность)"), h("b", { text: res.lowConfidence.map(function (n) { return n + " " + (nameByNum[n] || ""); }).join(", ") })));
-  return box;
 }
 function showErr(id, msg) { var e = $("#" + id); if (e) { e.textContent = msg; e.classList.add("show"); e.scrollIntoView({ behavior: "smooth", block: "center" }); } }
 
@@ -459,10 +453,7 @@ function renderTargets(main) {
       var ordered = picks.slice().sort(function (a, b) { return a - b; });
       var chosen = ordered.map(function (n) { return { num: n, name: nameByNum[n] ? nameByNum[n].name : "", simple: nameByNum[n] ? nameByNum[n].simple : "", motives: (motives[n] || []).slice() }; });
       var mot = (M && M.scoreMotives) ? M.scoreMotives(motives) : { autonomousShare: 0 };
-      var sumNode = h("div", { class: "summary" });
-      chosen.forEach(function (c) { sumNode.appendChild(h("div", { class: "l" }, h("span", { text: c.num + " · " + c.name }), h("b", { text: c.simple }))); });
-      sumNode.appendChild(h("div", { class: "l" }, h("span", {}, "Доля внутренней мотивации"), h("b", { text: Math.round((mot.autonomousShare || 0) * 100) + "%" })));
-      finishInstrument({ instrument: "targets", stage: "", payload: { picks: ordered, chosen: chosen, motives: motives, autonomousShare: mot.autonomousShare }, title: "Цели зафиксированы", message: "Ваши навыки-цели и мотивы сохранены и отправлены.", resultNode: sumNode }, ev.currentTarget);
+      finishInstrument({ instrument: "targets", stage: "", payload: { picks: ordered, chosen: chosen, motives: motives, autonomousShare: mot.autonomousShare }, title: "Цели зафиксированы", message: "Ваши навыки-цели сохранены и отправлены." }, ev.currentTarget);
     } }, "Сохранить цели", h("span", { class: "arr", text: "→" }))
   ));
   main.appendChild(bar);
@@ -679,7 +670,7 @@ function submitDiagnostic(D, ans, inst, stage, btn, visibleIds, showAll) {
   }
   var targets = ((LS.get(draftKey("targets"), {}) || {}).picks) || [];
   var payload = { stage: stage, mode: showAll ? "full" : "adaptive", blocks: visibleIds || [], targets: targets, answers: ans, scores: scores };
-  finishInstrument({ instrument: "diagnostic", stage: stage, statusKey: inst, payload: payload, title: (stage === "pre" ? "Первичная" : "Вторичная") + " диагностика завершена", message: "Ответы отправлены исследователю. Спасибо за подробные ответы." }, btn);
+  finishInstrument({ instrument: "diagnostic", stage: stage, statusKey: inst, payload: payload, title: "Методика 2 пройдена", message: "Ответы отправлены исследователю. Спасибо за подробные ответы." }, btn);
 }
 
 /* ---------------- заглушка, пока данные не загрузились ---------------- */
