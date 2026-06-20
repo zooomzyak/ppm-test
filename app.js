@@ -390,12 +390,11 @@ function renderTargets(main) {
   var MOT = (M && M.partB && M.partB.motives) || [];
   var inst = "targets";
   var draft = LS.get(draftKey(inst), null);
-  var picks = (draft && draft.picks) || LS.get(K_SUGG, []).slice();
+  var picks = (draft && draft.picks) || [];
   var motives = (draft && draft.motives) || {};
   var sugg = LS.get(K_SUGG, []);
 
   main.appendChild(pageHead("Инструмент 2", "Выбор навыков-целей", "Отметьте 1–3 навыка, над которыми будете работать в программе. Для каждого отметьте, что вами движет. По этим навыкам пойдёт сравнение «до и после»."));
-  if (sugg.length) main.appendChild(h("div", { class: "note", style: { marginBottom: "16px" } }, "По результатам мотивации заранее отмечены: ", h("b", { text: sugg.join(", ") }), ". Можно изменить."));
   main.appendChild(autosaveHint());
 
   function save() { LS.set(draftKey(inst), { picks: picks, motives: motives }); if (statusOf(inst) !== "done") setStatus(inst, "draft"); updateBar(); }
@@ -409,7 +408,7 @@ function renderTargets(main) {
       var sel = motives[a.num] || (motives[a.num] = []);
       MOT.forEach(function (m) {
         var mon = sel.indexOf(m.id) >= 0;
-        var c = h("label", { class: "choice" + (mon ? " on" : ""), style: { padding: "9px 12px" } },
+        var c = h("label", { class: "choice multi" + (mon ? " on" : ""), style: { padding: "9px 12px" } },
           h("span", { class: "mark" }), h("span", { class: "txt", text: m.text }));
         c.addEventListener("click", function () {
           var k = sel.indexOf(m.id); if (k >= 0) sel.splice(k, 1); else sel.push(m.id);

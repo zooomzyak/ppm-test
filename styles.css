@@ -272,6 +272,10 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--navy);bo
 .choice.on .ltr{color:var(--navy)}
 .choice .txt{flex:1}
 .choice.muted-opt{color:var(--muted);font-size:14.5px}
+/* множественный выбор — квадратный чек-бокс с галочкой (видно, что можно несколько) */
+.choice.multi .mark{border-radius:6px}
+.choice.multi.on .mark{background:var(--navy);border-color:var(--navy)}
+.choice.multi.on .mark::after{content:"";width:6px;height:10px;border:solid #fff;border-width:0 2.5px 2.5px 0;border-radius:0;background:none;transform:rotate(45deg) translateY(-1px)}
 
 /* шкала 1..5 / 1..7 (сегменты) */
 .scale{margin:6px 0 2px}
