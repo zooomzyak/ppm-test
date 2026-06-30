@@ -46,7 +46,7 @@ var LS = {
   set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
   del: function (k) { try { localStorage.removeItem(k); } catch (e) {} }
 };
-var K_PROFILE = "ppm.profile", K_PROG = "ppm.progress", K_SUGG = "ppm.suggested";
+var K_PROFILE = "ppm.profile", K_PROG = "ppm.progress", K_SUGG = "ppm.suggested", K_CTRL = "ppm.controls";
 function draftKey(inst) { return "ppm.draft." + inst; }
 function getProfile() { return LS.get(K_PROFILE, null); }
 function getProgress() { return LS.get(K_PROG, {}); }
@@ -451,8 +451,17 @@ function renderTargets(main) {
       var A2 = window.PPM_ABILITIES; var nameByNum = {}; A2.forEach(function (x) { nameByNum[x.num] = x; });
       var ordered = picks.slice().sort(function (a, b) { return a - b; });
       var chosen = ordered.map(function (n) { return { num: n, name: nameByNum[n] ? nameByNum[n].name : "", simple: nameByNum[n] ? nameByNum[n].simple : "", motives: (motives[n] || []).slice() }; });
+      /* Контрольные немишени: случайные параметры, которые участник НЕ выбрал.
+         Их фиксированное число — 3, независимо от числа выбранных целей.
+         Набор фиксируется здесь и используется одинаково на входном и итоговом
+         замере (внутрисубъектный контроль: прирост по мишеням сравнивается с
+         приростом по немишеням). */
+      var CONTROL_COUNT = 3;
+      var pool = A2.map(function (x) { return x.num; }).filter(function (n) { return ordered.indexOf(n) < 0; });
+      var controls = sampleRandom(pool, CONTROL_COUNT).sort(function (a, b) { return a - b; });
+      LS.set(K_CTRL, controls);
       var mot = (M && M.scoreMotives) ? M.scoreMotives(motives) : { autonomousShare: 0 };
-      finishInstrument({ instrument: "targets", stage: "", payload: { picks: ordered, chosen: chosen, motives: motives, autonomousShare: mot.autonomousShare }, title: "Цели зафиксированы", message: "Ваши навыки-цели сохранены и отправлены." }, ev.currentTarget);
+      finishInstrument({ instrument: "targets", stage: "", payload: { picks: ordered, chosen: chosen, controls: controls, motives: motives, autonomousShare: mot.autonomousShare }, title: "Цели зафиксированы", message: "Ваши навыки-цели сохранены и отправлены." }, ev.currentTarget);
     } }, "Сохранить цели", h("span", { class: "arr", text: "→" }))
   ));
   main.appendChild(bar);
@@ -465,6 +474,17 @@ function renderTargets(main) {
 var TARGET_BLOCK = { 1: "B2", 2: "B1", 3: "B3", 4: "B3", 5: "B4", 6: "B5", 7: "B5", 8: "B5", 9: "B6", 10: "B5", 11: "B5" };
 var TARGET_B5TASK = { 6: "t3", 7: "t1", 8: "t5", 10: "t4", 11: "t2" };
 
+/* Случайная выборка k элементов массива (перемешивание Фишера—Йетса).
+   Используется для подбора контрольных немишеней. */
+function sampleRandom(arr, k) {
+  var a = arr.slice();
+  for (var i = a.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a.slice(0, Math.max(0, Math.min(k, a.length)));
+}
+
 function renderDiagnostic(main, stage) {
   var D = window.PPM_DIAGNOSTIC;
   if (!D || !D.blocks) { main.appendChild(notReady()); return; }
@@ -473,9 +493,13 @@ function renderDiagnostic(main, stage) {
   var BLOCKS = D.formFor(stage);          // на post — параллельные формы
   var ans = LS.get(draftKey(inst), {});
   var targets = ((LS.get(draftKey("targets"), {}) || {}).picks) || [];
+  var controls = (LS.get(K_CTRL, []) || []).filter(function (n) { return targets.indexOf(n) < 0; });
+  var hasControls = controls.length > 0;
+  // в замер входят и мишени, и контрольные немишени того же участника
+  var measured = targets.concat(controls);
   var relBlocks = {}, relTasks = {};
-  targets.forEach(function (t) { if (TARGET_BLOCK[t]) relBlocks[TARGET_BLOCK[t]] = true; if (TARGET_B5TASK[t]) relTasks[TARGET_B5TASK[t]] = true; });
-  var hasTargets = targets.length > 0 && Object.keys(relBlocks).length > 0;
+  measured.forEach(function (t) { if (TARGET_BLOCK[t]) relBlocks[TARGET_BLOCK[t]] = true; if (TARGET_B5TASK[t]) relTasks[TARGET_B5TASK[t]] = true; });
+  var hasTargets = measured.length > 0 && Object.keys(relBlocks).length > 0;
   var showAll = !hasTargets;
 
   var stageRu = stage === "pre" ? "Первичная" : "Вторичная";
@@ -493,6 +517,7 @@ function renderDiagnostic(main, stage) {
   function updateModeNote() {
     if (!hasTargets) return;
     if (showAll) { modeText.textContent = "Показан полный замер из всех блоков."; modeBtn.textContent = "Только мои навыки-цели"; }
+    else if (hasControls) { modeText.textContent = "Показаны задания по части навыков. Это выбранные вами цели и ещё несколько навыков для сравнения замеров до и после."; modeBtn.textContent = "Показать полный замер"; }
     else { modeText.textContent = "Показаны задания по вашим выбранным навыкам."; modeBtn.textContent = "Показать полный замер"; }
   }
   function visibleBlocks() { return showAll ? BLOCKS.slice() : BLOCKS.filter(function (b) { return relBlocks[b.id]; }); }
@@ -668,7 +693,8 @@ function submitDiagnostic(D, ans, inst, stage, btn, visibleIds, showAll) {
     if (!btn.dataset.warned) { btn.dataset.warned = "1"; return; }
   }
   var targets = ((LS.get(draftKey("targets"), {}) || {}).picks) || [];
-  var payload = { stage: stage, mode: showAll ? "full" : "adaptive", blocks: visibleIds || [], targets: targets, answers: ans, scores: scores };
+  var controls = (LS.get(K_CTRL, []) || []).filter(function (n) { return targets.indexOf(n) < 0; });
+  var payload = { stage: stage, mode: showAll ? "full" : "adaptive", blocks: visibleIds || [], targets: targets, controls: controls, answers: ans, scores: scores };
   finishInstrument({ instrument: "diagnostic", stage: stage, statusKey: inst, payload: payload, title: "Методика 2 пройдена", message: "Ответы отправлены исследователю. Спасибо за подробные ответы." }, btn);
 }
 
