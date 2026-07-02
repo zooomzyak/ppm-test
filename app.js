@@ -495,6 +495,25 @@ function renderTargets(main) {
 var TARGET_BLOCK = { 1: "B2", 2: "B1", 3: "B3", 4: "B3", 5: "B4", 6: "B5", 7: "B5", 8: "B5", 9: "B6", 10: "B5", 11: "B5" };
 var TARGET_B5TASK = { 6: "t3", 7: "t1", 8: "t5", 10: "t4", 11: "t2" };
 
+/* Контрбалансировка параллельных форм. Порядок предъявления закреплён за
+   кодом участника: при чётной свёртке кода базовая форма идёт на входном
+   замере и параллельная на итоговом (порядок AB), при нечётной наоборот (BA).
+   Так возможная разница трудности форм в среднем по группе взаимно гасится,
+   порядок одинаков на обоих замерах и восстановим исследователем по коду. */
+function formOrderOf() {
+  var p = getProfile();
+  var s = p && p.code ? String(p.code) : "";
+  var h = 0;
+  for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 9973;
+  return h % 2 === 0 ? "AB" : "BA";
+}
+/* Какая форма предъявляется на данном этапе: "pre" = базовая, "post" = параллельная
+   (в терминах data.diagnostic.js, где параллельные поля лежат в .post). */
+function effectiveFormStage(stage) {
+  var alt = formOrderOf() === "BA" ? stage === "pre" : stage === "post";
+  return alt ? "post" : "pre";
+}
+
 /* Случайная выборка k элементов массива (перемешивание Фишера—Йетса).
    Используется для подбора контрольных немишеней. */
 function sampleRandom(arr, k) {
@@ -511,7 +530,7 @@ function renderDiagnostic(main, stage) {
   if (!D || !D.blocks) { main.appendChild(notReady()); return; }
   stage = (stage === "post") ? "post" : "pre";
   var inst = "diagnostic." + stage;
-  var BLOCKS = D.formFor(stage);          // на post — параллельные формы
+  var BLOCKS = D.formFor(effectiveFormStage(stage)); // форма по контрбалансировке
   var ans = LS.get(draftKey(inst), {});
   var targets = ((LS.get(draftKey("targets"), {}) || {}).picks) || [];
   var controls = (LS.get(K_CTRL, []) || []).filter(function (n) { return targets.indexOf(n) < 0; });
@@ -696,10 +715,11 @@ function openlistBlock(b, a, inst, ans, refresh) {
 }
 
 function submitDiagnostic(D, ans, inst, stage, btn, visibleIds, showAll) {
-  var BLOCKS = D.formFor(stage);
+  var formStage = effectiveFormStage(stage);
+  var BLOCKS = D.formFor(formStage);
   var visSet = {}; (visibleIds || BLOCKS.map(function (b) { return b.id; })).forEach(function (id) { visSet[id] = true; });
   var scores = {};
-  function sc(id, fn) { if (visSet[id] && fn) { try { scores[id] = fn.call(D, ans[id] || {}, stage); } catch (e) {} } }
+  function sc(id, fn) { if (visSet[id] && fn) { try { scores[id] = fn.call(D, ans[id] || {}, formStage); } catch (e) {} } }
   sc("B1", D.scoreB1); sc("B2", D.scoreB2); sc("B3", D.scoreB3); sc("B4", D.scoreB4);
 
   var miss = [];
@@ -715,7 +735,7 @@ function submitDiagnostic(D, ans, inst, stage, btn, visibleIds, showAll) {
   }
   var targets = ((LS.get(draftKey("targets"), {}) || {}).picks) || [];
   var controls = (LS.get(K_CTRL, []) || []).filter(function (n) { return targets.indexOf(n) < 0; });
-  var payload = { stage: stage, mode: showAll ? "full" : "adaptive", blocks: visibleIds || [], targets: targets, controls: controls, answers: ans, scores: scores };
+  var payload = { stage: stage, mode: showAll ? "full" : "adaptive", blocks: visibleIds || [], targets: targets, controls: controls, formOrder: formOrderOf(), form: formStage === "post" ? "parallel" : "base", answers: ans, scores: scores };
   finishInstrument({ instrument: "diagnostic", stage: stage, statusKey: inst, payload: payload, title: "Методика 2 пройдена", message: "Ответы отправлены исследователю. Спасибо за подробные ответы." }, btn);
 }
 
