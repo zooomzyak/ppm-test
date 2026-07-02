@@ -46,7 +46,7 @@ var LS = {
   set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
   del: function (k) { try { localStorage.removeItem(k); } catch (e) {} }
 };
-var K_PROFILE = "ppm.profile", K_PROG = "ppm.progress", K_SUGG = "ppm.suggested", K_CTRL = "ppm.controls";
+var K_PROFILE = "ppm.profile", K_PROG = "ppm.progress", K_CTRL = "ppm.controls";
 function draftKey(inst) { return "ppm.draft." + inst; }
 function getProfile() { return LS.get(K_PROFILE, null); }
 function getProgress() { return LS.get(K_PROG, {}); }
@@ -365,7 +365,6 @@ function renderMotivation(main, stage) {
       var doneCount = 0; M.abilities.forEach(function (a) { var g = ans.grid[a.num]; if (g && g.Ц && g.И && g.У) doneCount++; });
       if (doneCount < M.abilities.length) { showErr("motErr", "Оцените все 11 умений по трём шкалам (отвечено " + doneCount + " из 11)."); return; }
       var res = M.score(ans);
-      if (stage === "pre") LS.set(K_SUGG, res.suggestedTargets || []);
       finishInstrument({
         instrument: "motivation", stage: stage, statusKey: inst,
         payload: { stage: stage, answers: ans, score: res },
@@ -400,9 +399,12 @@ function renderTargets(main) {
   var draft = LS.get(draftKey(inst), null);
   var picks = ((draft && draft.picks) || []).filter(function (n) { return NOT_DEVELOPED.indexOf(n) < 0; });
   var motives = (draft && draft.motives) || {};
-  var sugg = LS.get(K_SUGG, []);
+  /* Отметки участника из опросника мотивации. Показываются у каждого навыка
+     как напоминание его собственных оценок. Никаких кандидатов и рекомендаций
+     сайт не выделяет, решение участник принимает сам. */
+  var motGrid = (LS.get(draftKey("motivation.pre"), { grid: {} }) || {}).grid || {};
 
-  main.appendChild(pageHead("Инструмент 2", "Выбор навыков-целей", "Отметьте 1–3 навыка, над которыми будете работать в программе. Для каждого отметьте, что вами движет. По этим навыкам пойдёт сравнение «до и после». Два навыка недоступны для выбора: академическая экспертность и архитектоничность развиваются только в реальной практике рецензирования и проектирования программ, поэтому в цели программы не входят."));
+  main.appendChild(pageHead("Инструмент 2", "Выбор навыков-целей", "Отметьте 1–3 навыка, над которыми будете работать в программе. Для каждого отметьте, что вами движет. По этим навыкам пойдёт сравнение «до и после». У каждого навыка показаны ваши отметки из опросника мотивации. Два навыка недоступны для выбора: академическая экспертность и архитектоничность развиваются только в реальной практике рецензирования и проектирования программ, поэтому в цели программы не входят."));
   main.appendChild(autosaveHint());
 
   function save() { LS.set(draftKey(inst), { picks: picks, motives: motives }); if (statusOf(inst) !== "done") setStatus(inst, "draft"); updateBar(); }
@@ -426,14 +428,18 @@ function renderTargets(main) {
         motivesBox.appendChild(c);
       });
     }
+    var g = motGrid[String(a.num)] || motGrid[a.num] || {};
+    var marks = (g["Ц"] && g["И"] && g["У"])
+      ? h("div", { class: "marks", text: "Ваши отметки: ценность " + g["Ц"] + ", интерес " + g["И"] + ", уверенность " + g["У"] })
+      : null;
     var row = h("div", { class: "ability" + (on ? " on" : "") + (na ? " na" : "") },
       h("div", { class: "num", text: String(a.num) }),
       h("div", { class: "body" },
         h("div", { class: "name", text: a.name }),
         h("div", { class: "simple", text: a.simple }),
         h("div", { class: "desc", text: a.desc }),
-        na ? h("div", { class: "tags" }, h("span", { class: "tag na", text: "не входит в цели программы" }))
-           : (sugg.indexOf(a.num) >= 0 ? h("div", { class: "tags" }, h("span", { class: "tag sugg", text: "по мотивации" })) : null)
+        marks,
+        na ? h("div", { class: "tags" }, h("span", { class: "tag na", text: "не входит в цели программы" })) : null
       ),
       na ? null : h("div", { class: "check" })
     );

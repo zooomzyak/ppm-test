@@ -44,8 +44,9 @@ window.PPM_MOTIVATION = {
 
 /* Подсчёт части А.
    Индекс ценности параметра = (Ц + И) / 2 (диапазон 1–5). Ожидание успеха = У.
-   Кандидаты в цели = параметры с ценностью ≥ 4, не больше трёх по убыванию ценности.
    Низкая уверенность = ценность ≥ 4 при У ≤ 3.
+   Эти значения считаются только для исследователя. Участнику сайт никаких
+   кандидатов и рекомендаций по ним не показывает, цели он выбирает сам.
    Устойчиво к отсутствующим и частичным ответам. */
 window.PPM_MOTIVATION.score = function (answers) {
   var data = window.PPM_MOTIVATION;
@@ -65,15 +66,11 @@ window.PPM_MOTIVATION.score = function (answers) {
     perAbility.push({ num: an, value: value, expectation: u });
   }
 
-  var byValue = perAbility.filter(function (r) { return r.value !== null; })
-    .slice().sort(function (x, y) { return (y.value || 0) - (x.value || 0); });
-  var suggestedTargets = byValue.filter(function (r) { return r.value >= 4; })
-    .slice(0, 3).map(function (r) { return r.num; });
   var lowConfidence = perAbility.filter(function (r) {
     return r.value !== null && r.value >= 4 && r.expectation !== null && r.expectation <= 3;
   }).map(function (r) { return r.num; });
 
-  return { perAbility: perAbility, suggestedTargets: suggestedTargets, lowConfidence: lowConfidence };
+  return { perAbility: perAbility, lowConfidence: lowConfidence };
 };
 
 /* Подсчёт автономности мотивов, отмеченных на шаге выбора целей.
