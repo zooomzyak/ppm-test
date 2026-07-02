@@ -364,10 +364,9 @@ function renderMotivation(main, stage) {
       // мягкая валидация
       var doneCount = 0; M.abilities.forEach(function (a) { var g = ans.grid[a.num]; if (g && g.Ц && g.И && g.У) doneCount++; });
       if (doneCount < M.abilities.length) { showErr("motErr", "Оцените все 11 умений по трём шкалам (отвечено " + doneCount + " из 11)."); return; }
-      var res = M.score(ans);
       finishInstrument({
         instrument: "motivation", stage: stage, statusKey: inst,
-        payload: { stage: stage, answers: ans, score: res },
+        payload: { stage: stage, answers: ans },
         title: "Методика 1 пройдена",
         message: stage === "post"
           ? "Ответы отправлены. Этот замер сравнят с вашим первым по коду участника. Спасибо!"

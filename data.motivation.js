@@ -42,36 +42,9 @@ window.PPM_MOTIVATION = {
   }
 };
 
-/* Подсчёт части А.
-   Индекс ценности параметра = (Ц + И) / 2 (диапазон 1–5). Ожидание успеха = У.
-   Низкая уверенность = ценность ≥ 4 при У ≤ 3.
-   Эти значения считаются только для исследователя. Участнику сайт никаких
-   кандидатов и рекомендаций по ним не показывает, цели он выбирает сам.
-   Устойчиво к отсутствующим и частичным ответам. */
-window.PPM_MOTIVATION.score = function (answers) {
-  var data = window.PPM_MOTIVATION;
-  answers = answers || {};
-  var grid = answers.grid || {};
-  function num(v) { var n = Number(v); return isFinite(n) ? n : null; }
-
-  var perAbility = [];
-  for (var a = 0; a < data.abilities.length; a++) {
-    var an = data.abilities[a].num;
-    var cell = grid[String(an)] || grid[an] || {};
-    var c = num(cell["Ц"]), inter = num(cell["И"]), u = num(cell["У"]);
-    var value = null;
-    if (c !== null && inter !== null) value = (c + inter) / 2;
-    else if (c !== null) value = c;
-    else if (inter !== null) value = inter;
-    perAbility.push({ num: an, value: value, expectation: u });
-  }
-
-  var lowConfidence = perAbility.filter(function (r) {
-    return r.value !== null && r.value >= 4 && r.expectation !== null && r.expectation <= 3;
-  }).map(function (r) { return r.num; });
-
-  return { perAbility: perAbility, lowConfidence: lowConfidence };
-};
+/* Ответы части А на сайте никак не сворачиваются и не оцениваются:
+   участнику ничего не подсказывается, а исследователю оценки уходят
+   в исходном виде внутри answers. */
 
 /* Подсчёт автономности мотивов, отмеченных на шаге выбора целей.
    motivesMap = { номерСпособности: [идМотива, ...] }.
