@@ -383,6 +383,14 @@ function showErr(id, msg) { var e = $("#" + id); if (e) { e.textContent = msg; e
 /* ====================================================================
    ВЫБОР ЦЕЛЕЙ
    ==================================================================== */
+/* Параметры без собственного механизма развития: академическая экспертность (9)
+   и архитектоничность (11). Они развиваются только реальной включённостью
+   (рецензирование и экспертиза работ, проектирование образовательных программ),
+   программа на них не направлена, поэтому они недоступны как цели и не попадают
+   в контрольные немишени. В мотивационном опроснике и в полном замере (?full=1)
+   участвуют наравне с остальными. */
+var NOT_DEVELOPED = [9, 11];
+
 function renderTargets(main) {
   var A = window.PPM_ABILITIES;
   if (!A) { main.appendChild(notReady()); return; }
@@ -390,17 +398,18 @@ function renderTargets(main) {
   var MOT = (M && M.partB && M.partB.motives) || [];
   var inst = "targets";
   var draft = LS.get(draftKey(inst), null);
-  var picks = (draft && draft.picks) || [];
+  var picks = ((draft && draft.picks) || []).filter(function (n) { return NOT_DEVELOPED.indexOf(n) < 0; });
   var motives = (draft && draft.motives) || {};
   var sugg = LS.get(K_SUGG, []);
 
-  main.appendChild(pageHead("Инструмент 2", "Выбор навыков-целей", "Отметьте 1–3 навыка, над которыми будете работать в программе. Для каждого отметьте, что вами движет. По этим навыкам пойдёт сравнение «до и после»."));
+  main.appendChild(pageHead("Инструмент 2", "Выбор навыков-целей", "Отметьте 1–3 навыка, над которыми будете работать в программе. Для каждого отметьте, что вами движет. По этим навыкам пойдёт сравнение «до и после». Два навыка недоступны для выбора: академическая экспертность и архитектоничность развиваются только в реальной практике рецензирования и проектирования программ, поэтому в цели программы не входят."));
   main.appendChild(autosaveHint());
 
   function save() { LS.set(draftKey(inst), { picks: picks, motives: motives }); if (statusOf(inst) !== "done") setStatus(inst, "draft"); updateBar(); }
   var host = h("div", { class: "screen" });
   A.forEach(function (a) {
-    var on = picks.indexOf(a.num) >= 0;
+    var na = NOT_DEVELOPED.indexOf(a.num) >= 0;
+    var on = !na && picks.indexOf(a.num) >= 0;
     var motivesBox = h("div", { style: { display: on ? "block" : "none", margin: "2px 0 16px 42px" } });
     function buildMotives() {
       motivesBox.innerHTML = "";
@@ -417,20 +426,25 @@ function renderTargets(main) {
         motivesBox.appendChild(c);
       });
     }
-    var row = h("div", { class: "ability" + (on ? " on" : "") },
+    var row = h("div", { class: "ability" + (on ? " on" : "") + (na ? " na" : "") },
       h("div", { class: "num", text: String(a.num) }),
       h("div", { class: "body" },
         h("div", { class: "name", text: a.name }),
         h("div", { class: "simple", text: a.simple }),
         h("div", { class: "desc", text: a.desc }),
-        sugg.indexOf(a.num) >= 0 ? h("div", { class: "tags" }, h("span", { class: "tag sugg", text: "по мотивации" })) : null
+        na ? h("div", { class: "tags" }, h("span", { class: "tag na", text: "не входит в цели программы" }))
+           : (sugg.indexOf(a.num) >= 0 ? h("div", { class: "tags" }, h("span", { class: "tag sugg", text: "по мотивации" })) : null)
       ),
-      h("div", { class: "check" })
+      na ? null : h("div", { class: "check" })
     );
     row.addEventListener("click", function () {
+      if (na) { toast("Этот навык развивается только в реальной практике, в цели программы он не входит", "err"); return; }
       var idx = picks.indexOf(a.num);
       if (idx >= 0) { picks.splice(idx, 1); on = false; }
-      else { if (picks.length >= 3) { toast("Рекомендуем не больше трёх целей", "err"); } picks.push(a.num); on = true; }
+      else {
+        if (picks.length >= 3) { toast("Не больше трёх целей", "err"); return; }
+        picks.push(a.num); on = true;
+      }
       row.classList.toggle("on", on);
       motivesBox.style.display = on ? "block" : "none";
       if (on) buildMotives();
@@ -442,7 +456,7 @@ function renderTargets(main) {
   main.appendChild(host);
 
   var bar = h("div", { class: "sticky-bar" }, h("div", { class: "inner" },
-    h("div", { class: "count" }, "Выбрано ", h("b", { id: "tgCount", text: String(picks.length) }), " из 11"),
+    h("div", { class: "count" }, "Выбрано ", h("b", { id: "tgCount", text: String(picks.length) }), " из 3"),
     h("div", { class: "spacer" }),
     h("button", { class: "btn primary", onclick: function (ev) {
       if (!picks.length) { toast("Отметьте хотя бы один навык", "err"); return; }
@@ -453,11 +467,13 @@ function renderTargets(main) {
       var chosen = ordered.map(function (n) { return { num: n, name: nameByNum[n] ? nameByNum[n].name : "", simple: nameByNum[n] ? nameByNum[n].simple : "", motives: (motives[n] || []).slice() }; });
       /* Контрольные немишени: случайные параметры, которые участник НЕ выбрал.
          Их фиксированное число — 3, независимо от числа выбранных целей.
+         Пул отбора — только развиваемые программой параметры (без NOT_DEVELOPED),
+         чтобы прирост по мишеням сравнивался с сопоставимыми немишенями.
          Набор фиксируется здесь и используется одинаково на входном и итоговом
          замере (внутрисубъектный контроль: прирост по мишеням сравнивается с
          приростом по немишеням). */
       var CONTROL_COUNT = 3;
-      var pool = A2.map(function (x) { return x.num; }).filter(function (n) { return ordered.indexOf(n) < 0; });
+      var pool = A2.map(function (x) { return x.num; }).filter(function (n) { return ordered.indexOf(n) < 0 && NOT_DEVELOPED.indexOf(n) < 0; });
       var controls = sampleRandom(pool, CONTROL_COUNT).sort(function (a, b) { return a - b; });
       LS.set(K_CTRL, controls);
       var mot = (M && M.scoreMotives) ? M.scoreMotives(motives) : { autonomousShare: 0 };

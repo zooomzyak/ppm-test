@@ -326,6 +326,10 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--navy);bo
 .tag.spec{background:#efe6f3;color:#6a4b86}
 .tag.univ{background:var(--ice-soft);color:var(--navy)}
 .tag.sugg{background:#F8EFD6;color:#866018}
+.ability.na{opacity:.55;cursor:default}
+.ability.na:hover{border-color:var(--line);transform:none}
+.ability.na .num{background:#7c8290}
+.tag.na{background:#F0E4E4;color:#8A5252}
 .ability .check{flex:0 0 auto;width:24px;height:24px;border-radius:7px;border:2px solid var(--line);display:grid;place-items:center;margin-top:2px}
 .ability.on .check{border-color:var(--navy);background:var(--navy)}
 .ability.on .check::after{content:"✓";color:#fff;font-size:15px;font-weight:800}
