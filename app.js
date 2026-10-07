@@ -499,13 +499,34 @@ var TARGET_B5TASK = { 6: "t3", 7: "t1", 8: "t5", 10: "t4", 11: "t2" };
    кодом участника: при чётной свёртке кода базовая форма идёт на входном
    замере и параллельная на итоговом (порядок AB), при нечётной наоборот (BA).
    Так возможная разница трудности форм в среднем по группе взаимно гасится,
-   порядок одинаков на обоих замерах и восстановим исследователем по коду. */
+   порядок одинаков на обоих замерах и восстановим исследователем по коду.
+   Исключение для первого потока: до 07.10.2026 в интернете работала версия
+   сайта без контрбалансировки, где входная диагностика у всех шла по базовой
+   форме. Кто начал или прошёл вход на ней, получает порядок AB, чтобы на
+   выходе ему досталась параллельная форма, а не та же самая. */
+var K_FORM = "ppm.formOrder";
+var FORM_ORDER_FIXED = {
+  "ОК5": "AB",                              // ОК5, вход 16.09.2026
+  "ШИКИНА": "AB"    // ШИКИНА, вход 23.09.2026
+};
 function formOrderOf() {
   var p = getProfile();
   var s = p && p.code ? String(p.code) : "";
+  if (FORM_ORDER_FIXED[s]) return FORM_ORDER_FIXED[s];
+  var saved = LS.get(K_FORM, null);
+  if (saved && saved.code === s && (saved.order === "AB" || saved.order === "BA")) return saved.order;
+  // вход начат или пройден, а порядок не записан: значит, это была прежняя версия сайта
+  if (statusOf("diagnostic.pre")) return "AB";
   var h = 0;
   for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 9973;
   return h % 2 === 0 ? "AB" : "BA";
+}
+/* Порядок записывается при первом открытии входной диагностики, дальше берётся из записи. */
+function rememberFormOrder() {
+  var p = getProfile();
+  var s = p && p.code ? String(p.code) : "";
+  var saved = LS.get(K_FORM, null);
+  if (!saved || saved.code !== s) LS.set(K_FORM, { code: s, order: formOrderOf() });
 }
 /* Какая форма предъявляется на данном этапе: "pre" = базовая, "post" = параллельная
    (в терминах data.diagnostic.js, где параллельные поля лежат в .post). */
@@ -530,6 +551,7 @@ function renderDiagnostic(main, stage) {
   if (!D || !D.blocks) { main.appendChild(notReady()); return; }
   stage = (stage === "post") ? "post" : "pre";
   var inst = "diagnostic." + stage;
+  if (stage === "pre") rememberFormOrder();
   var BLOCKS = D.formFor(effectiveFormStage(stage)); // форма по контрбалансировке
   var ans = LS.get(draftKey(inst), {});
   var targets = ((LS.get(draftKey("targets"), {}) || {}).picks) || [];
